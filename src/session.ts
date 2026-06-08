@@ -10,7 +10,7 @@ export type SessionState = {
   updatedAt: number;
 };
 
-const SESSION_PATH = join(homedir(), '.config', 'disc-chat-tui', 'session.json');
+const SESSION_PATH = join(homedir(), '.config', 'quietcord', 'session.json');
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
 function readRaw(): SessionState {

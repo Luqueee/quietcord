@@ -2,7 +2,7 @@ import {appendFileSync, mkdirSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {homedir} from 'node:os';
 
-const LOG_PATH = join(homedir(), '.local', 'share', 'disc-chat-tui', 'gateway.log');
+const LOG_PATH = join(homedir(), '.local', 'share', 'quietcord', 'gateway.log');
 
 let enabled = false;
 

@@ -1,10 +1,10 @@
 {
-  "name": "disc-chat-tui",
+  "name": "quietcord",
   "version": "0.1.0",
-  "description": "Terminal UI for sending messages to a Discord voice channel chat",
+  "description": "A stealthy terminal client for Discord. No 'online' status, no notifications, no bloat.",
   "type": "module",
   "bin": {
-    "disc-chat-tui": "dist/cli.js"
+    "quietcord": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

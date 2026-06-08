@@ -291,7 +291,7 @@ export class DiscordClient extends EventEmitter {
       method,
       headers: {
         authorization: this.token,
-        'user-agent': 'disc-chat-tui (https://github.com/local, v0.1.0)',
+        'user-agent': 'quietcord (https://github.com/local, v0.1.0)',
         'content-type': 'application/json',
       },
     };
@@ -379,8 +379,8 @@ export class DiscordClient extends EventEmitter {
       intents: this.intents,
       properties: {
         os: 'linux',
-        browser: 'disc-chat-tui',
-        device: 'disc-chat-tui',
+        browser: 'quietcord',
+        device: 'quietcord',
       },
       presence: {status: 'online', since: 0, activities: [], afk: false},
     });

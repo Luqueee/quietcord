@@ -4,7 +4,7 @@ import {homedir} from 'node:os';
 
 export type StoredConfig = {token?: string; execName?: string; showHints?: boolean};
 
-const CONFIG_PATH = join(homedir(), '.config', 'disc-chat-tui', 'config.json');
+const CONFIG_PATH = join(homedir(), '.config', 'quietcord', 'config.json');
 
 function readConfig(): StoredConfig {
   if (!existsSync(CONFIG_PATH)) return {};

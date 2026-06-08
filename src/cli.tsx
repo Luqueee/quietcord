@@ -14,10 +14,10 @@ if (process.argv.includes('--')) {
 const cli = meow(
   `
   Usage
-    $ disc-chat-tui [options]
-    $ disc-chat-tui --login          set token (writes to ~/.config/disc-chat-tui/config.json)
-    $ disc-chat-tui --logout         clear stored token
-    $ disc-chat-tui --reset-session  clear last channel/draft memory
+    $ quietcord [options]
+    $ quietcord --login          set token (writes to ~/.config/quietcord/config.json)
+    $ quietcord --logout         clear stored token
+    $ quietcord --reset-session  clear last channel/draft memory
 
   Options
     --token, -t  Discord user token (overrides stored token and env)
@@ -27,7 +27,7 @@ const cli = meow(
     --show-hints show keyboard hints footer
     --no-resume  always start at guild picker (skip last channel restore)
     --reset-session  clear saved last channel and draft
-    --verbose    log gateway activity to ~/.local/share/disc-chat-tui/gateway.log
+    --verbose    log gateway activity to ~/.local/share/quietcord/gateway.log
 `,
   {
     importMeta: import.meta,
@@ -88,7 +88,7 @@ if (cli.flags.login) {
 
   if (!process.stdin.isTTY) {
     process.stderr.write(
-      'stdin is not a TTY. disc-chat-tui requires an interactive terminal ' +
+      'stdin is not a TTY. quietcord requires an interactive terminal ' +
         '(run it directly in your terminal emulator, not piped or backgrounded).\n'
     );
     process.exit(1);
