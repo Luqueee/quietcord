@@ -12,6 +12,7 @@ import {
 } from './discord.js';
 import {
   State,
+  Mode,
   GuildItem,
   ChannelItem,
   ChatMessage,
@@ -67,7 +68,7 @@ export default function App({token, showHints, noResume}: Props) {
       silentErrorsRef.current = 0;
 
       const session = noResume ? {updatedAt: 0} : sessionRef.current;
-      let view: State['view'] = 'guilds';
+      let view: State['view'] = 'mode-select';
       let currentGuild: Guild | null = null;
       let currentChannel: Channel | null = null;
       let restoredDraft = '';
@@ -96,7 +97,7 @@ export default function App({token, showHints, noResume}: Props) {
         client,
         status: 'ready',
         guilds: buildGuildList(guilds),
-        view,
+        view: s.view === 'mode-select' ? 'mode-select' : view,
         currentGuild,
         currentChannel,
         messages: currentChannel ? s.messages : [],
@@ -254,6 +255,7 @@ export default function App({token, showHints, noResume}: Props) {
 
     let cancelled = false;
     log('app: fetching history for', currentChannel.id);
+    setState(s => ({...s, messages: [], loadingHistory: true}));
     client
       .fetchHistory(currentChannel.id, 50)
       .then(msgs => {
@@ -262,10 +264,15 @@ export default function App({token, showHints, noResume}: Props) {
         setState(s => {
           const selfId = s.client?.getUser()?.id;
           const history = msgs.map(m => toChatMessage(m, selfId)).sort((a, b) => a.ts - b.ts);
-          return {...s, messages: history.slice(-MAX_MESSAGES)};
+          return {...s, messages: history.slice(-MAX_MESSAGES), loadingHistory: false};
         });
       })
-      .catch(err => log('app: history failed', err.message));
+      .catch(err => {
+        log('app: history failed', err.message);
+        if (!cancelled) {
+          setState(s => ({...s, loadingHistory: false}));
+        }
+      });
 
     setState(s => ({...s, voiceStates: client.getVoiceStatesForChannel(currentChannel.id)}));
 
@@ -283,11 +290,74 @@ export default function App({token, showHints, noResume}: Props) {
       exit();
       return;
     }
+    if (state.mode === 'stealth') {
+      if (key.ctrl && input === 'g') {
+        setState(s => ({...s, historyVisible: !s.historyVisible}));
+        return;
+      }
+      if (state.view === 'stealth-guilds' && key.escape) {
+        setState(s => ({...s, view: 'mode-select', mode: null, currentGuild: null, currentChannel: null}));
+        return;
+      }
+      if (state.view === 'stealth-channels' && key.escape) {
+        setState(s => ({...s, view: 'stealth-guilds', currentGuild: null, channels: []}));
+        return;
+      }
+      if (state.view === 'chat') {
+        if (state.historyVisible && key.escape) {
+          setState(s => ({...s, historyVisible: false}));
+          return;
+        }
+        if (!state.historyVisible) {
+          if (key.return) {
+            const content = state.draft.trim();
+            if (content && state.currentChannel) {
+              void sendMessage(state, setState, clientRef.current);
+            }
+            return;
+          }
+          if (key.meta) {
+            return;
+          }
+          if (key.backspace || key.delete) {
+            if (state.draft.length > 0) {
+              const next = state.draft.slice(0, -1);
+              setState(s => ({...s, draft: next}));
+              if (next) saveDraft(next);
+            }
+            return;
+          }
+          if (key.ctrl || key.upArrow || key.downArrow || key.leftArrow || key.rightArrow) {
+            return;
+          }
+          if (input) {
+            const next = state.draft + input;
+            setState(s => ({...s, draft: next}));
+            saveDraft(next);
+            return;
+          }
+          if (key.escape) {
+            setState(s => ({
+              ...s,
+              view: 'stealth-channels',
+              currentChannel: null,
+              messages: [],
+              unread: 0,
+            }));
+            return;
+          }
+        }
+        return;
+      }
+      return;
+    }
     if (state.view === 'chat' && key.escape) {
       setState(s => ({...s, view: 'channels', currentChannel: null, messages: [], unread: 0}));
     } else if (state.view === 'channels' && key.escape) {
       setState(s => ({...s, view: 'guilds', currentGuild: null, channels: []}));
     } else if (state.view === 'guilds' && key.escape) {
+      setState(s => ({...s, view: 'mode-select', mode: null}));
+    } else if (state.view === 'mode-select' && key.escape) {
       exit();
     }
   });
@@ -303,6 +373,59 @@ export default function App({token, showHints, noResume}: Props) {
   const body = (() => {
     if (state.status === 'connecting') {
       return <Text dimColor> </Text>;
+    }
+    if (state.view === 'mode-select') {
+      return (
+        <ModeSelect
+          onSelect={m => {
+            setState(s => {
+              if (m === 'normal') {
+                return {...s, mode: 'normal', view: 'guilds'};
+              }
+              return {...s, mode: 'stealth', view: 'stealth-guilds'};
+            });
+          }}
+        />
+      );
+    }
+    if (state.mode === 'stealth') {
+      if (state.view === 'stealth-guilds') {
+        return (
+          <StealthPicker
+            title="Servidor:"
+            items={state.guilds}
+            onSelect={item => enterGuildStealth(item, setState)}
+          />
+        );
+      }
+      if (state.view === 'stealth-channels') {
+        return (
+          <StealthPicker
+            title="Canal:"
+            items={state.channels}
+            onSelect={item => enterChannelStealth(item, setState)}
+          />
+        );
+      }
+      if (state.historyVisible) {
+        return (
+          <StealthChatView
+            channel={state.currentChannel as Channel}
+            messages={state.messages}
+            draft={state.draft}
+            statusFlash={statusFlash}
+            queueSize={state.queueSize}
+            unread={state.unread}
+            loadingHistory={state.loadingHistory}
+          />
+        );
+      }
+      return (
+        <StealthInput
+          channel={state.currentChannel as Channel}
+          draft={state.draft}
+        />
+      );
     }
     if (state.view === 'guilds') {
       return (
@@ -339,6 +462,7 @@ export default function App({token, showHints, noResume}: Props) {
         queueSize={state.queueSize}
         unread={state.unread}
         resolver={makeMentionResolver(state)}
+        loadingHistory={state.loadingHistory}
       />
     );
   })();
@@ -361,6 +485,116 @@ function Hints({view}: {view: State['view']}) {
   return (
     <Box marginTop={1}>
       <Text dimColor>{text}</Text>
+    </Box>
+  );
+}
+
+function ModeSelect({onSelect}: {onSelect: (m: Mode) => void}) {
+  const items = [
+    {label: 'Normal', value: 'normal' as Mode},
+    {label: 'Discreto', value: 'stealth' as Mode},
+  ];
+  return (
+    <Box flexDirection="column">
+      <Box marginBottom={1}>
+        <Text>Selecciona modo:</Text>
+      </Box>
+      <Box flexDirection="column">
+        <SelectInput items={items} onSelect={item => onSelect(item.value)} />
+      </Box>
+      <Box marginTop={1} flexDirection="column">
+        <Text dimColor>discreto: solo input · ctrl+g historial · esc cambiar canal</Text>
+      </Box>
+    </Box>
+  );
+}
+
+function StealthInput({
+  channel,
+  draft,
+}: {
+  channel: Channel;
+  draft: string;
+}) {
+  return (
+    <Box>
+      <Text color="green">› </Text>
+      <Text inverse> </Text>
+      {draft ? <Text>{draft}</Text> : null}
+    </Box>
+  );
+}
+
+function StealthChatView({
+  channel,
+  messages,
+  draft,
+  statusFlash,
+  queueSize,
+  unread,
+  loadingHistory,
+}: {
+  channel: Channel;
+  messages: ChatMessage[];
+  draft: string;
+  statusFlash: string | null;
+  queueSize: number;
+  unread: number;
+  loadingHistory?: boolean;
+}) {
+  const visible = useMemo(() => messages.slice(-VISIBLE_MESSAGES), [messages]);
+  return (
+    <Box flexDirection="column">
+      <Box flexDirection="column" height={VISIBLE_MESSAGES} overflow="hidden" flexShrink={0}>
+        {visible.map(m => (
+          <Box key={m.id} flexDirection="row">
+            <Text color={m.isMe ? 'green' : 'cyan'}>
+              {(m.author || '???').slice(0, 12).padEnd(12)}{' '}
+            </Text>
+            <Text>
+              {m.deleted ? '[deleted]' : (m.content || '').replace(/\n/g, ' ')}
+              {m.editedAt ? ' (edited)' : ''}
+            </Text>
+          </Box>
+        ))}
+        {messages.length === 0 ? (
+          <Text dimColor>{loadingHistory ? 'cargando historial…' : ' '}</Text>
+        ) : null}
+      </Box>
+      <Box>
+        <Text color="green">› </Text>
+        <Text inverse> </Text>
+        {draft ? <Text>{draft}</Text> : null}
+      </Box>
+      <Box>
+        <Text dimColor>
+          {(statusFlash ?? ' ').padEnd(40)}
+          {queueSize > 0 ? ` queued:${queueSize}` : ''}
+          {unread > 0 ? ` ●${unread}` : ''}
+        </Text>
+      </Box>
+      <Text dimColor>#{channel.name}</Text>
+    </Box>
+  );
+}
+
+function StealthPicker({
+  title,
+  items,
+  onSelect,
+}: {
+  title: string;
+  items: Array<{label: string; value: string}>;
+  onSelect: (item: {label: string; value: string}) => void;
+}) {
+  return (
+    <Box flexDirection="column">
+      <Box marginBottom={1}>
+        <Text>{title}</Text>
+      </Box>
+      <Box flexDirection="column">
+        <SelectInput items={items} onSelect={onSelect} limit={15} />
+      </Box>
     </Box>
   );
 }
@@ -390,6 +624,38 @@ function enterChannel(item: ChannelItem, setState: React.Dispatch<React.SetState
       currentChannel: channel,
       view: 'chat',
       messages: [],
+      draft: '',
+      unread: 0,
+    };
+  });
+}
+
+function enterGuildStealth(item: GuildItem, setState: React.Dispatch<React.SetStateAction<State>>) {
+  setState(s => {
+    if (!s.client) return s;
+    const guild = s.client.getGuilds().find(g => g.id === item.value);
+    if (!guild) return s;
+    return {
+      ...s,
+      currentGuild: guild,
+      channels: buildChannelList(guild),
+      view: 'stealth-channels',
+    };
+  });
+}
+
+function enterChannelStealth(item: ChannelItem, setState: React.Dispatch<React.SetStateAction<State>>) {
+  setState(s => {
+    if (!s.client || !s.currentGuild) return s;
+    const channel = s.currentGuild.channels.find(c => c.id === item.value);
+    if (!channel) return s;
+    saveChannel(s.currentGuild.id, channel.id);
+    const sameChannel = s.currentChannel?.id === channel.id;
+    return {
+      ...s,
+      currentChannel: channel,
+      view: 'chat',
+      historyVisible: false,
       draft: '',
       unread: 0,
     };
@@ -480,6 +746,7 @@ function ChatView({
   queueSize,
   unread,
   resolver,
+  loadingHistory,
 }: {
   channel: Channel;
   messages: ChatMessage[];
@@ -491,6 +758,7 @@ function ChatView({
   queueSize: number;
   unread: number;
   resolver: ReturnType<typeof makeMentionResolver>;
+  loadingHistory?: boolean;
 }) {
   const visible = useMemo(() => messages.slice(-VISIBLE_MESSAGES), [messages]);
   const inVoice = voiceStates.length > 0;
@@ -508,7 +776,9 @@ function ChatView({
             </Text>
           </Box>
         ))}
-        {messages.length === 0 ? <Text dimColor> </Text> : null}
+        {messages.length === 0 ? (
+          <Text dimColor>{loadingHistory ? 'cargando historial…' : ' '}</Text>
+        ) : null}
       </Box>
       <Box>
         <Text color="green">› </Text>

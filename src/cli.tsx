@@ -3,6 +3,7 @@ import React from 'react';
 import {render} from 'ink';
 import meow from 'meow';
 import App from './app.js';
+import TokenPrompt from './TokenPrompt.js';
 import {loadToken, saveToken, clearToken, getConfigPath} from './config.js';
 import {enableVerbose, log} from './logger.js';
 import {clearSession, getSessionPath} from './session.js';
@@ -15,7 +16,7 @@ const cli = meow(
   `
   Usage
     $ quietcord [options]
-    $ quietcord --login          set token (writes to ~/.config/quietcord/config.json)
+    $ quietcord --login          set token from stdin (writes to ~/.config/quietcord/config.json)
     $ quietcord --logout         clear stored token
     $ quietcord --reset-session  clear last channel/draft memory
 
@@ -81,11 +82,61 @@ if (cli.flags.login) {
   });
 } else {
   const token = cli.flags.token || process.env.DISCORD_TOKEN || loadToken() || '';
-  if (!token) {
-    process.stderr.write('no token; pass --token, set DISCORD_TOKEN, or run --login\n');
-    process.exit(1);
-  }
 
+  if (!token) {
+    if (!process.stdin.isTTY) {
+      process.stderr.write(
+        'no token; pass --token, set DISCORD_TOKEN, or run --login\n'
+      );
+      process.exit(1);
+    }
+    promptForToken();
+  } else {
+    startApp(token);
+  }
+}
+
+function promptForToken() {
+  let pendingApp: {unmount: () => void} | null = null;
+
+  const handleSave = (t: string) => {
+    saveToken(t);
+    if (pendingApp) {
+      pendingApp.unmount();
+    }
+    if (process.stdout.writable) {
+      process.stdout.write('\x1b[2J\x1b[H');
+    }
+    startApp(t);
+  };
+
+  const handleQuit = () => {
+    restoreTerminal();
+    process.exit(0);
+  };
+
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    process.on(sig, () => {
+      restoreTerminal();
+      process.exit(0);
+    });
+  }
+  process.on('exit', () => {
+    restoreTerminal();
+  });
+
+  const r = render(
+    React.createElement(TokenPrompt, {
+      configPath: getConfigPath(),
+      onSave: handleSave,
+      onQuit: handleQuit,
+    }),
+    {exitOnCtrlC: false, patchConsole: false}
+  );
+  pendingApp = r;
+}
+
+function startApp(token: string) {
   if (!process.stdin.isTTY) {
     process.stderr.write(
       'stdin is not a TTY. quietcord requires an interactive terminal ' +
@@ -105,13 +156,6 @@ if (cli.flags.login) {
     {exitOnCtrlC: true, patchConsole: false}
   );
 
-  const restoreTerminal = () => {
-    if (process.stdout.writable) {
-      process.stdout.write('\x1b[?25h');
-      process.stdout.write('\x1b[?1049l');
-    }
-  };
-
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
     process.on(sig, () => {
       restoreTerminal();
@@ -119,7 +163,6 @@ if (cli.flags.login) {
       process.exit(0);
     });
   }
-
   process.on('exit', () => {
     restoreTerminal();
   });
@@ -127,4 +170,11 @@ if (cli.flags.login) {
   void waitUntilExit().then(() => {
     restoreTerminal();
   });
+}
+
+function restoreTerminal() {
+  if (process.stdout.writable) {
+    process.stdout.write('\x1b[?25h');
+    process.stdout.write('\x1b[?1049l');
+  }
 }

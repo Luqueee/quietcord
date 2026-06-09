@@ -1,7 +1,9 @@
 import {Channel, Guild, Message, DiscordClient, ChannelKind, VoiceState} from './discord.js';
 import {MentionResolver} from './markdown.js';
 
-export type View = 'guilds' | 'channels' | 'chat';
+export type View = 'mode-select' | 'guilds' | 'channels' | 'chat' | 'stealth-guilds' | 'stealth-channels';
+
+export type Mode = 'normal' | 'stealth';
 
 export type GuildItem = {label: string; value: string};
 export type ChannelItem = {label: string; value: string};
@@ -22,6 +24,9 @@ export type State = {
   status: 'connecting' | 'ready' | 'error';
   error: string | null;
   view: View;
+  mode: Mode | null;
+  historyVisible: boolean;
+  loadingHistory: boolean;
   guilds: GuildItem[];
   channels: ChannelItem[];
   currentGuild: Guild | null;
@@ -37,7 +42,10 @@ export const initialState: State = {
   client: null,
   status: 'connecting',
   error: null,
-  view: 'guilds',
+  view: 'mode-select',
+  mode: null,
+  historyVisible: false,
+  loadingHistory: false,
   guilds: [],
   channels: [],
   currentGuild: null,

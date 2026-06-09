@@ -27,29 +27,41 @@ npm run build
 
 This is a terminal app. **It must be run from a real interactive terminal** (gnome-terminal, iTerm2, Alacritty, kitty, Windows Terminal, tmux pane, etc.). It will not work when piped, backgrounded with `&`, or run from IDE run-panels that don't expose a TTY.
 
-### First time: save your token
+### First time: paste your token
+
+If `quietcord` can't find a token in any source (flag, env, saved config), it opens an in-app prompt. Paste your token there — it gets masked as you type and saved to disk:
 
 ```sh
-echo "your_token_here" | npm start -- --login
+npm start
+# → opens TokenPrompt, paste token, press enter
 ```
 
 The token is stored in `~/.config/quietcord/config.json` with permissions `0600`.
+
+You can also set it explicitly:
+
+```sh
+# one-shot via stdin (non-interactive, useful for scripts)
+echo "your_token_here" | npm start -- --login
+
+# or pass directly without saving
+DISCORD_TOKEN=your_token npm start
+npm start -- --token your_token
+```
 
 ### Subsequent runs
 
 ```sh
 npm start
-# or with env var
-DISCORD_TOKEN=your_token npm start
-# or explicit override
-npm start -- --token your_token
 ```
+
+quietcord resumes the last `(guild, channel)` you were in.
 
 ### Useful flags
 
 | Flag | Effect |
 |---|---|
-| `--login` | Read token from stdin, save to disk |
+| `--login` | Read token from stdin, save to disk (non-interactive) |
 | `--logout` | Remove stored token |
 | `--token <t>`, `-t <t>` | Use this token, ignore stored/env |
 | `--exec-name <name>` | Set `process.title` (default: `node`) — controls what `ps` shows |
