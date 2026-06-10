@@ -7,8 +7,8 @@ import {ChatView} from './ui/components/ChatView.js';
 import {StealthPicker} from './ui/components/StealthPicker.js';
 import {StealthInput} from './ui/components/StealthInput.js';
 import {StealthChatView} from './ui/components/StealthChatView.js';
-import {makeMentionResolver} from './state.js';
-import type {MentionResolver} from './markdown.js';
+import {makeMentionResolver} from './state/mention.js';
+import type {MentionResolver} from './markdown/types.js';
 
 type Resolver = MentionResolver & {getVoiceMembers: () => {id: string; name: string}[]};
 
@@ -16,25 +16,7 @@ export function Router() {
   const {state, dispatch, onSelectGuild, onSelectChannel} = useAppState();
 
   const resolver = useMemo<Resolver>(
-    () =>
-      makeMentionResolver({
-        client: state.client,
-        status: state.status,
-        error: state.error,
-        view: state.view,
-        mode: state.mode,
-        historyVisible: state.historyVisible,
-        loadingHistory: state.loadingHistory,
-        guilds: state.guilds,
-        channels: state.channels,
-        currentGuild: state.currentGuild,
-        currentChannel: state.currentChannel,
-        messages: state.messages,
-        draft: state.draft,
-        voiceStates: state.voiceStates,
-        queueSize: state.queueSize,
-        unread: state.unread,
-      }),
+    () => makeMentionResolver(state),
     [state]
   );
 

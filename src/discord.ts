@@ -1,53 +1,12 @@
 import {WebSocket} from 'ws';
 import {EventEmitter} from 'node:events';
 import {log} from './logger.js';
+import type {Snowflake, User, Channel, Guild, Message, VoiceState, ReadyPayload} from './domain/types.js';
 
 const API = 'https://discord.com/api/v10';
 const GATEWAY = 'wss://gateway.discord.gg/?v=10&encoding=json';
 
-export type Snowflake = string;
-
-export type User = {
-  id: Snowflake;
-  username: string;
-  discriminator: string;
-  global_name?: string | null;
-  avatar?: string | null;
-};
-
-export type Channel = {
-  id: Snowflake;
-  name: string;
-  type: number;
-  guild_id?: Snowflake;
-  parent_id?: Snowflake | null;
-  position?: number;
-};
-
-export type Guild = {
-  id: Snowflake;
-  name: string;
-  icon?: string | null;
-  channels: Channel[];
-  voice_states?: VoiceState[];
-};
-
-export type Message = {
-  id: Snowflake;
-  channel_id: Snowflake;
-  content: string;
-  author: User;
-  timestamp: string;
-  edited_timestamp?: string | null;
-};
-
-export type ReadyPayload = {
-  v: number;
-  user: User;
-  guilds: Guild[];
-  session_id: string;
-  resume_gateway_url: string;
-};
+export type {Snowflake, User, Channel, Guild, Message, VoiceState, ReadyPayload} from './domain/types.js';
 
 export type GatewayMessage = {
   id: Snowflake;
@@ -56,16 +15,6 @@ export type GatewayMessage = {
   author: User;
   timestamp: string;
   edited_timestamp?: string | null;
-};
-
-export type VoiceState = {
-  guild_id?: Snowflake;
-  channel_id?: Snowflake | null;
-  user_id: Snowflake;
-  member?: {user?: User; nick?: string | null};
-  self_mute?: boolean;
-  self_deaf?: boolean;
-  suppress?: boolean;
 };
 
 export type SendResult =
@@ -464,8 +413,3 @@ export class DiscordClient extends EventEmitter {
     }
   }
 }
-
-export const ChannelKind = {
-  isTextType,
-  isVoiceType,
-};

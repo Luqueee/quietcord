@@ -79,7 +79,8 @@ export type Action =
   | {type: 'unread-clear'}
   | {type: 'queue-update'; size: number}
   | {type: 'voice-update'; states: VoiceState[]}
-  | {type: 'confirm-pending'; tempId: string; message: ChatMessage};
+  | {type: 'confirm-pending'; tempId: string; message: ChatMessage}
+  | {type: 'guild-update'; guilds: {label: string; value: string}[]};
 
 export function reduce(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -213,6 +214,8 @@ export function reduce(state: AppState, action: Action): AppState {
       return {...state, queueSize: action.size};
     case 'voice-update':
       return {...state, voiceStates: action.states};
+    case 'guild-update':
+      return {...state, guilds: action.guilds};
   }
 }
 

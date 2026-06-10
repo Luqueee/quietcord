@@ -72,9 +72,10 @@ function Shell({client, noResume}: Props) {
 
     const onReady = ({user, guilds}: {user: User; guilds: Guild[]}): void => {
       if (cancelled) return;
-      log('app: ready, guilds=', guilds.length);
+      const available = guilds.filter((g): g is Guild & {name: string} => typeof g.name === 'string');
+      log('app: ready, guilds=', available.length, 'of', guilds.length);
       silentErrorsRef.current = 0;
-      dispatch({type: 'ready', user, guilds: buildGuildList(guilds)});
+      dispatch({type: 'ready', user, guilds: buildGuildList(available)});
 
       const session = noResume ? {updatedAt: 0} : loadSession();
       if (!session.guildId) return;
@@ -147,6 +148,13 @@ function Shell({client, noResume}: Props) {
       dispatch({type: 'queue-update', size});
     };
 
+    const onGuildUpdate = (g: Guild): void => {
+      if (cancelled) return;
+      if (typeof g.name !== 'string') return;
+      const list = buildGuildList(client.getGuilds().filter((x): x is Guild & {name: string} => typeof x.name === 'string'));
+      dispatch({type: 'guild-update', guilds: list});
+    };
+
     const onMessageSent = (m: Message): void => {
       if (cancelled) return;
       const s = stateRef.current;
@@ -182,6 +190,7 @@ function Shell({client, noResume}: Props) {
     client.on('messageUpdate', onMessageUpdate);
     client.on('messageDelete', onMessageDelete);
     client.on('voiceStateUpdate', onVoiceState);
+    client.on('guildUpdate', onGuildUpdate);
     client.on('queueUpdate', onQueueUpdate);
     client.on('messageSent', onMessageSent);
     client.on('error', onError);
@@ -198,9 +207,11 @@ function Shell({client, noResume}: Props) {
       client.off('messageUpdate', onMessageUpdate);
       client.off('messageDelete', onMessageDelete);
       client.off('voiceStateUpdate', onVoiceState);
+      client.off('guildUpdate', onGuildUpdate);
       client.off('queueUpdate', onQueueUpdate);
       client.off('messageSent', onMessageSent);
       client.off('error', onError);
+      void client.destroy();
     };
   }, [client, noResume]);
 
@@ -246,68 +257,68 @@ function Shell({client, noResume}: Props) {
       exit();
       return;
     }
-    if (state.mode === 'stealth') {
+
+    if (state.view === 'chat') {
       if (key.ctrl && input === 'g') {
         dispatch({type: 'toggle-history'});
         return;
       }
-      if (state.view === 'stealth-guilds' && key.escape) {
-        dispatch({type: 'go-to-mode-select'});
-        return;
-      }
-      if (state.view === 'stealth-channels' && key.escape) {
-        dispatch({type: 'go-to-stealth-guilds'});
-        return;
-      }
-      if (state.view === 'chat') {
-        if (state.historyVisible && key.escape) {
+      if (key.escape) {
+        if (state.historyVisible) {
           dispatch({type: 'toggle-history'});
-          return;
+        } else {
+          dispatch({type: 'leave-channel'});
         }
-        if (!state.historyVisible) {
-          if (key.return) {
-            const content = state.draft.trim();
-            if (content && state.currentChannel) {
-              void sendMessage(dispatch, state, client);
-            }
-            return;
-          }
-          if (key.meta) return;
-          if (key.backspace || key.delete) {
-            if (state.draft.length > 0) {
-              dispatch({type: 'draft-backspace'});
-              const next = state.draft.slice(0, -1);
-              if (next) persistDraft(next);
-              else persistClearDraft();
-            }
-            return;
-          }
-          if (key.ctrl || key.upArrow || key.downArrow || key.leftArrow || key.rightArrow) {
-            return;
-          }
-          if (input) {
-            const next = state.draft + input;
-            dispatch({type: 'set-draft', draft: next});
-            persistDraft(next);
-            return;
-          }
-          if (key.escape) {
-            dispatch({type: 'leave-channel'});
-            return;
-          }
+        return;
+      }
+      if (state.historyVisible) {
+        return;
+      }
+      if (key.return) {
+        const content = state.draft.trim();
+        if (content && state.currentChannel) {
+          void sendMessage(dispatch, state, client);
         }
+        return;
+      }
+      if (key.backspace || key.delete) {
+        if (state.draft.length > 0) {
+          dispatch({type: 'draft-backspace'});
+          const next = state.draft.slice(0, -1);
+          if (next) persistDraft(next);
+          else persistClearDraft();
+        }
+        return;
+      }
+      if (key.ctrl || key.upArrow || key.downArrow || key.leftArrow || key.rightArrow) {
+        return;
+      }
+      if (input) {
+        const next = state.draft + input;
+        dispatch({type: 'set-draft', draft: next});
+        persistDraft(next);
         return;
       }
       return;
     }
-    if (state.view === 'chat' && key.escape) {
-      dispatch({type: 'leave-channel'});
-    } else if (state.view === 'channels' && key.escape) {
-      dispatch({type: 'go-to-guilds'});
-    } else if (state.view === 'guilds' && key.escape) {
-      dispatch({type: 'go-to-mode-select'});
-    } else if (state.view === 'mode-select' && key.escape) {
-      exit();
+
+    if (key.escape) {
+      if (state.mode === 'stealth') {
+        if (state.view === 'stealth-guilds') {
+          dispatch({type: 'go-to-mode-select'});
+        } else if (state.view === 'stealth-channels') {
+          dispatch({type: 'go-to-stealth-guilds'});
+        }
+      } else {
+        if (state.view === 'channels') {
+          dispatch({type: 'go-to-guilds'});
+        } else if (state.view === 'guilds') {
+          dispatch({type: 'go-to-mode-select'});
+        } else if (state.view === 'mode-select') {
+          exit();
+        }
+      }
+      return;
     }
   });
 
