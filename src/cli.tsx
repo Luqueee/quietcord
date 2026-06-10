@@ -7,6 +7,7 @@ import TokenPrompt from './TokenPrompt.js';
 import {loadToken, saveToken, clearToken, getConfigPath} from './config.js';
 import {enableVerbose, log} from './logger.js';
 import {clearSession, getSessionPath} from './session.js';
+import {DiscordClient} from './discord.js';
 
 if (process.argv.includes('--')) {
   process.argv = process.argv.filter(a => a !== '--');
@@ -147,10 +148,10 @@ function startApp(token: string) {
 
   log('cli: starting with token length', token.length);
 
+  const client = new DiscordClient(token);
   const {unmount, waitUntilExit} = render(
     React.createElement(App, {
-      token,
-      showHints: cli.flags.showHints,
+      client,
       noResume: cli.flags.noResume,
     }),
     {exitOnCtrlC: true, patchConsole: false}

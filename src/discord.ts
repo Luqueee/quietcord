@@ -60,7 +60,7 @@ export type GatewayMessage = {
 
 export type VoiceState = {
   guild_id?: Snowflake;
-  channel_id: Snowflake | null;
+  channel_id?: Snowflake | null;
   user_id: Snowflake;
   member?: {user?: User; nick?: string | null};
   self_mute?: boolean;
