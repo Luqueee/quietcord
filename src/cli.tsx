@@ -9,6 +9,10 @@ import {enableVerbose, log} from './logger.js';
 import {clearSession, getSessionPath} from './session.js';
 import {DiscordClient} from './discord.js';
 
+let currentUnmount: (() => void) | null = null;
+let exitHandlersInstalled = false;
+let terminalRestored = false;
+
 if (process.argv.includes('--')) {
   process.argv = process.argv.filter(a => a !== '--');
 }
@@ -97,6 +101,47 @@ if (cli.flags.login) {
   }
 }
 
+function restoreTerminal(): void {
+  if (!process.stdout.writable) return;
+  process.stdout.write('\x1b[?25h');
+  process.stdout.write('\x1b[?1049l');
+  process.stdout.write('\x1b[0m');
+  if (!terminalRestored) {
+    terminalRestored = true;
+    process.stdout.write('\n');
+  }
+}
+
+function installExitHandlers(unmount: () => void): void {
+  currentUnmount = unmount;
+  if (exitHandlersInstalled) return;
+  exitHandlersInstalled = true;
+
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    process.on(sig, () => {
+      restoreTerminal();
+      currentUnmount?.();
+      process.exit(0);
+    });
+  }
+
+  process.on('beforeExit', restoreTerminal);
+  process.on('exit', restoreTerminal);
+
+  process.on('uncaughtException', err => {
+    process.stderr.write(`\nuncaughtException: ${err.stack ?? err.message}\n`);
+    restoreTerminal();
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', reason => {
+    const msg = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+    process.stderr.write(`\nunhandledRejection: ${msg}\n`);
+    restoreTerminal();
+    process.exit(1);
+  });
+}
+
 function promptForToken() {
   let pendingApp: {unmount: () => void} | null = null;
 
@@ -116,16 +161,6 @@ function promptForToken() {
     process.exit(0);
   };
 
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-    process.on(sig, () => {
-      restoreTerminal();
-      process.exit(0);
-    });
-  }
-  process.on('exit', () => {
-    restoreTerminal();
-  });
-
   const r = render(
     React.createElement(TokenPrompt, {
       configPath: getConfigPath(),
@@ -135,6 +170,7 @@ function promptForToken() {
     {exitOnCtrlC: false, patchConsole: false}
   );
   pendingApp = r;
+  installExitHandlers(() => r.unmount());
 }
 
 function startApp(token: string) {
@@ -157,25 +193,9 @@ function startApp(token: string) {
     {exitOnCtrlC: true, patchConsole: false}
   );
 
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-    process.on(sig, () => {
-      restoreTerminal();
-      unmount();
-      process.exit(0);
-    });
-  }
-  process.on('exit', () => {
-    restoreTerminal();
-  });
+  installExitHandlers(unmount);
 
   void waitUntilExit().then(() => {
     restoreTerminal();
   });
-}
-
-function restoreTerminal() {
-  if (process.stdout.writable) {
-    process.stdout.write('\x1b[?25h');
-    process.stdout.write('\x1b[?1049l');
-  }
 }
